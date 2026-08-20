@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="style.css">
+<style>
+  .canvas { width: 1620px; }
+  .cols { display: flex; gap: 26px; align-items: flex-start; }
+  .flow { flex: 1 1 auto; min-width: 0; }
+  .aside { flex: 0 0 400px; display: flex; flex-direction: column; gap: 12px; }
+  .lyr { border: 1px solid var(--line); border-radius: 10px; background: #fff; display: flex; overflow: hidden; }
+  .lyr .num { flex: 0 0 46px; background: var(--panel); border-right: 1px solid var(--line-soft); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+  .lyr .num b { font-size: 17px; font-weight: 700; color: var(--be); }
+  .lyr .num s { text-decoration: none; font-size: 9px; font-weight: 700; letter-spacing: 0.8px; color: var(--muted); }
+  .lyr .main { flex: 1; padding: 13px 16px; min-width: 0; }
+  .lyr .top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 3px; }
+  .lyr .name { font-size: 15.5px; font-weight: 700; }
+  .lyr .cls { font-size: 11.5px; font-weight: 600; color: var(--be); }
+  .lyr .role { font-size: 11.5px; color: var(--muted); margin-bottom: 9px; }
+  .lyr.l1 { border-top: 3px solid #1d4ed8; } .lyr.l1 .num b, .lyr.l1 .cls { color: #1d4ed8; }
+  .lyr.l2 { border-top: 3px solid #0f766e; }
+  .lyr.l3 { border-top: 3px solid #7a3fb8; } .lyr.l3 .num b, .lyr.l3 .cls { color: #7a3fb8; }
+  .lyr.l4 { border-top: 3px solid #0b6b3a; } .lyr.l4 .num b, .lyr.l4 .cls { color: #0b6b3a; }
+  .lyr.l5 { border-top: 3px solid var(--db); } .lyr.l5 .num b, .lyr.l5 .cls { color: var(--db); }
+  .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 22px; }
+  .kv div { font-size: 11.8px; color: var(--ink-2); line-height: 1.6; padding-left: 11px; position: relative; }
+  .kv div::before { content: ''; position: absolute; left: 0; top: 8px; width: 4px; height: 4px; border-radius: 50%; background: var(--line); }
+  .vgap .side { font-weight: 600; }
+  .vgap .side.up { color: var(--muted); font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="canvas">
+
+  <div class="head">
+    <div>
+      <div class="h1">Spring Boot Backend &mdash; Layered Architecture</div>
+      <div class="sub">One request path, one responsibility per layer &nbsp;&middot;&nbsp; <span class="mono">com.airport.dashboard</span> &nbsp;&middot;&nbsp; Java 21</div>
+    </div>
+    <div class="tag">Separation of concerns</div>
+  </div>
+
+  <div class="cols">
+    <!-- ================= MAIN FLOW ================= -->
+    <div class="flow">
+
+      <div class="vgap tall" style="height:44px">
+        <div class="side r">HTTP request<br><span class="mono">GET /api/v1/dashboard/records?...</span></div>
+        <div class="arrow-d"></div>
+        <div class="spacer"></div>
+        <div class="arrow-up"></div>
+        <div class="side up">JSON response<br><span class="mono">{ success, message, data }</span></div>
+      </div>
+
+      <!-- L1 -->
+      <div class="lyr l1">
+        <div class="num"><b>1</b><s>API</s></div>
+        <div class="main">
+          <div class="top"><div class="name">API / Presentation</div><div class="cls">AirportDashboardController</div></div>
+          <div class="role">Speaks HTTP. Binds and validates query parameters, delegates, and shapes the response envelope.</div>
+          <div class="kv">
+            <div><span class="mono">@RestController</span> &middot; <span class="mono">@RequestMapping("/api/v1/dashboard")</span></div>
+            <div><span class="mono">GET /summary</span> <span class="ar"></span> <span class="mono">ApiResponse&lt;DashboardSummaryResponse&gt;</span></div>
+            <div>Constructor injection via <span class="mono">@RequiredArgsConstructor</span></div>
+            <div><span class="mono">GET /records</span> <span class="ar"></span> <span class="mono">ApiResponse&lt;Page&lt;DashboardRecordResponse&gt;&gt;</span></div>
+            <div>Params: <span class="mono">page=0</span>, <span class="mono">size=10</span>, <span class="mono">sortBy=updatedAt</span>, <span class="mono">sortDirection=desc</span></div>
+            <div>Optional filters: <span class="mono">status</span>, <span class="mono">entityType</span>, <span class="mono">location</span>, <span class="mono">search</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="vgap">
+        <div class="side r">Typed parameters</div>
+        <div class="arrow-d"></div>
+        <div class="spacer"></div>
+        <div class="arrow-up"></div>
+        <div class="side up">Response DTO / <span class="mono">Page&lt;T&gt;</span></div>
+      </div>
+
+      <!-- L2 -->
+      <div class="lyr l2">
+        <div class="num"><b>2</b><s>APP</s></div>
+        <div class="main">
+          <div class="top"><div class="name">Application / Business</div><div class="cls">AirportDashboardService &rsaquo; ServiceImpl</div></div>
+          <div class="role">Owns the use case: aggregation rules, sort semantics, paging setup and entity&nbsp;<span class="ar"></span>&nbsp;DTO mapping.</div>
+          <div class="kv">
+            <div>Interface + implementation, so the layer is mockable</div>
+            <div>Folds <span class="mono">GROUP BY status</span> rows into a typed summary</div>
+            <div>Derives <span class="mono">totalProject</span> from the per-status counts</div>
+            <div>Sort aliasing: <span class="mono">lastUpdated</span><span class="ar"></span><span class="mono">updatedAt</span>, <span class="mono">airport</span><span class="ar"></span><span class="mono">airportName</span></div>
+            <div>Builds <span class="mono">Sort</span> + <span class="mono">PageRequest.of(page, size, sort)</span></div>
+            <div><span class="mono">convertToResponse()</span> maps enums to display labels</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="vgap">
+        <div class="side r">Filter criteria</div>
+        <div class="arrow-d"></div>
+        <div class="spacer"></div>
+        <div class="arrow-up"></div>
+        <div class="side up">Composed predicate</div>
+      </div>
+
+      <!-- L3 -->
+      <div class="lyr l3">
+        <div class="num"><b>3</b><s>QUERY</s></div>
+        <div class="main">
+          <div class="top"><div class="name">Query / Filtering</div><div class="cls">AirportDashboardSpecification</div></div>
+          <div class="role">Turns optional filters into one dynamic JPA Criteria query &mdash; no string concatenation, no query explosion.</div>
+          <div class="kv">
+            <div><span class="mono">notDeleted()</span> &mdash; soft-delete guard applied to every query</div>
+            <div><span class="mono">hasLocation()</span> &mdash; case-insensitive <span class="mono">LIKE</span></div>
+            <div><span class="mono">hasStatus()</span> / <span class="mono">hasEntityType()</span> &mdash; equality</div>
+            <div><span class="mono">search()</span> &mdash; <span class="mono">OR</span> across identifier, name, ICAO, IATA, location, procedure, MITS</div>
+            <div>Null / blank filters return <span class="mono">cb.conjunction()</span>, so absent filters are no-ops</div>
+            <div>Composed with <span class="mono">Specification.where(...).and(...)</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="vgap">
+        <div class="side r"><span class="mono">Specification</span> + <span class="mono">Pageable</span></div>
+        <div class="arrow-d"></div>
+        <div class="spacer"></div>
+        <div class="arrow-up"></div>
+        <div class="side up"><span class="mono">Page&lt;AirportDashboard&gt;</span></div>
+      </div>
+
+      <!-- L4 -->
+      <div class="lyr l4">
+        <div class="num"><b>4</b><s>DATA</s></div>
+        <div class="main">
+          <div class="top"><div class="name">Persistence</div><div class="cls">AirportDashboardRepository &middot; AirportDashboard</div></div>
+          <div class="role">Spring Data JPA / Hibernate. Declarative repository, no hand-written DAO or JDBC plumbing.</div>
+          <div class="kv">
+            <div><span class="mono">JpaRepository&lt;AirportDashboard, Long&gt;</span></div>
+            <div><span class="mono">findAll(spec, pageable)</span> + automatic <span class="mono">COUNT</span> query</div>
+            <div><span class="mono">JpaSpecificationExecutor&lt;AirportDashboard&gt;</span></div>
+            <div><span class="mono">@Query</span> JPQL: <span class="mono">SELECT a.status, COUNT(a) &hellip; GROUP BY a.status</span></div>
+            <div>Entity <span class="mono">@Table("airport_dashboard")</span> with <span class="mono">@Version</span> optimistic locking</div>
+            <div><span class="mono">@PrePersist</span> / <span class="mono">@PreUpdate</span> maintain audit columns</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="vgap">
+        <div class="side r">SQL over JDBC</div>
+        <div class="arrow-d"></div>
+        <div class="spacer"></div>
+        <div class="arrow-up"></div>
+        <div class="side up">Result set <span class="ar"></span> managed entities</div>
+      </div>
+
+      <!-- L5 -->
+      <div class="lyr l5">
+        <div class="num"><b>5</b><s>DB</s></div>
+        <div class="main">
+          <div class="top"><div class="name">Database</div><div class="cls">PostgreSQL &middot; airport_dashboard</div></div>
+          <div class="role">The only place operational truth lives. Filtering, sorting, counting and paging all execute here.</div>
+          <div class="kv">
+            <div>Partial indexes on <span class="mono">status</span>, <span class="mono">entity_type</span>, <span class="mono">icao</span>, <span class="mono">iata</span>, <span class="mono">location</span></div>
+            <div>Composite index <span class="mono">(status, updated_at DESC)</span> for the default table view</div>
+            <div>All indexes are <span class="mono">WHERE is_deleted = FALSE</span></div>
+            <div><span class="mono">UNIQUE(entity_identifier)</span> + CHECK constraints on status, type, ICAO / IATA</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ================= SIDE CONCERNS ================= -->
+    <div class="aside">
+      <div class="card" style="border-top:3px solid #b3261e">
+        <h4>Error path<small>GlobalExceptionHandler</small></h4>
+        <ul>
+          <li><span class="mono">@RestControllerAdvice</span> intercepts exceptions from any layer</li>
+          <li>Emits a consistent <span class="mono">ErrorResponse</span>: <span class="mono">timestamp</span>, <span class="mono">status</span>, <span class="mono">error</span>, <span class="mono">message</span>, <span class="mono">path</span></li>
+          <li>Controllers stay free of try / catch blocks</li>
+        </ul>
+      </div>
+      <div class="card" style="border-top:3px solid #7a3fb8">
+        <h4>Type mapping<small>converter package</small></h4>
+        <ul>
+          <li><span class="mono">@Converter(autoApply = true)</span> on status and entity type</li>
+          <li>Database stores readable labels (<span class="mono">"Pending Calculation"</span>); Java works with enum constants</li>
+          <li>Normalises spacing, case and separators, so legacy rows still load</li>
+        </ul>
+      </div>
+      <div class="card" style="border-top:3px solid #b3261e">
+        <h4>Caching hook<small>cache + config packages</small></h4>
+        <ul>
+          <li><span class="mono">@EnableCaching</span> with <span class="mono">RedisCacheManager</span>, 5 minute TTL</li>
+          <li>Summary endpoint is the designated <span class="mono">@Cacheable</span> target</li>
+          <li><span class="mono">DashboardCacheService</span> evicts on write via <span class="mono">@CacheEvict</span></li>
+        </ul>
+      </div>
+      <div class="card" style="border-top:3px solid #0f766e">
+        <h4>API contract<small>dto package + springdoc</small></h4>
+        <ul>
+          <li><span class="mono">ApiResponse&lt;T&gt;</span> envelope: <span class="mono">success</span>, <span class="mono">message</span>, <span class="mono">data</span></li>
+          <li><span class="mono">DashboardSummaryResponse</span>, <span class="mono">DashboardRecordResponse</span></li>
+          <li>Entities never cross the HTTP boundary</li>
+          <li>OpenAPI schema and Swagger UI generated from the controller</li>
+        </ul>
+      </div>
+      <div class="callout" style="border-left-color:var(--be)">
+        <b>Why it matters:</b> each layer can be tested in isolation &mdash; the specification without HTTP, the service with a mocked repository, the controller with a mocked service. New filters or endpoints extend one layer at a time.
+      </div>
+      <div class="card" style="border-top:3px solid var(--infra)">
+        <h4>One request, end to end<small>filtered + sorted + paged table read</small></h4>
+        <ul>
+          <li>Controller binds <span class="mono">status=BLOCKED</span>, <span class="mono">search=DEL</span>, <span class="mono">page=1</span></li>
+          <li>Service maps the sort key and builds a <span class="mono">Pageable</span></li>
+          <li>Specification composes four predicates into one <span class="mono">WHERE</span> clause</li>
+          <li>Repository issues one data query plus one count query</li>
+          <li>PostgreSQL answers from the partial indexes</li>
+          <li>Service maps rows to DTOs; controller returns the envelope</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">Airport Operations Dashboard &middot; backend layered architecture &middot; class names taken from the current source tree</div>
+</div>
+</body>
+</html>

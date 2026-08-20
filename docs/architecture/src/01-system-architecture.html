@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="style.css">
+<style>
+  .canvas { width: 1680px; }
+  .cacheflow { display: flex; align-items: center; gap: 0; margin-top: 10px; }
+  .cbox { border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 7px 10px; font-size: 11.3px; font-weight: 600; color: var(--ink-2); text-align: center; line-height: 1.35; }
+  .cbox.hit { border-color: #9ecdb0; background: #f2fbf5; color: #14663c; }
+  .cbox.miss { border-color: #e6bdb9; background: #fdf5f4; color: #8d2b23; }
+</style>
+</head>
+<body>
+<div class="canvas">
+
+  <div class="head">
+    <div>
+      <div class="h1">Airport Operations Dashboard &mdash; System Architecture</div>
+      <div class="sub">Angular 21 (standalone + signals) <span class="ar"></span> Spring Boot REST API (Java 21) <span class="ar"></span> Hibernate / Spring Data JPA <span class="ar"></span> PostgreSQL &nbsp;&middot;&nbsp; Redis cache layer &nbsp;&middot;&nbsp; Flyway-managed schema</div>
+    </div>
+    <div class="tag">Current architecture</div>
+  </div>
+
+  <!-- ============ FRONTEND ============ -->
+  <div class="layer">
+    <div class="rail fe"><span>Frontend</span></div>
+    <div class="body">
+      <div class="ltitle">Angular Dashboard UI</div>
+      <div class="lsub">Presentation only &mdash; no aggregation, no filtering, no business rules in the browser</div>
+      <div class="row">
+        <div class="card tint-fe">
+          <h4>Dashboard Page<small>dashboard-page.component</small></h4>
+          <ul>
+            <li>Summary cards (status counts)</li>
+            <li>Filters: search, status, entity type, location</li>
+            <li>Data table: sort + server-side pagination</li>
+            <li>Status / entity badges, empty state</li>
+          </ul>
+        </div>
+        <div class="card tint-fe">
+          <h4>DashboardStore<small>signal-based state</small></h4>
+          <ul>
+            <li><span class="mono">signal()</span> summary, records, loading, error</li>
+            <li><span class="mono">distinctUntilChanged</span> <span class="ar"></span> skips duplicate fetches</li>
+            <li><span class="mono">switchMap</span> <span class="ar"></span> cancels stale requests</li>
+            <li>Keeps last good page visible on error</li>
+          </ul>
+        </div>
+        <div class="card tint-fe">
+          <h4>DashboardApiService<small>+ dashboard.mapper</small></h4>
+          <ul>
+            <li>Builds <span class="mono">HttpParams</span> from the filter model</li>
+            <li>Unwraps <span class="mono">ApiResponse&lt;T&gt;</span> envelope</li>
+            <li>Maps API payload <span class="ar"></span> UI models</li>
+            <li>Base URL from <span class="mono">environment.apiBaseUrl</span></li>
+          </ul>
+        </div>
+        <div class="card tint-fe">
+          <h4>HTTP Interceptors<small>core/interceptors</small></h4>
+          <ul>
+            <li>auth &mdash; attaches credentials</li>
+            <li>error &mdash; normalises failures + toasts</li>
+            <li>loading &mdash; global progress state</li>
+            <li>http &mdash; shared request concerns</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="vgap tall">
+    <div class="side r">REST / JSON over HTTPS<br>Stateless request per interaction</div>
+    <div class="arrow-d"></div>
+    <div class="side"><span class="mono">GET /api/v1/dashboard/summary</span><br><span class="mono">GET /api/v1/dashboard/records?page&amp;size&amp;status&amp;entityType&amp;location&amp;search&amp;sortBy&amp;sortDirection</span></div>
+  </div>
+
+  <!-- ============ BACKEND ============ -->
+  <div class="layer">
+    <div class="rail be"><span>Backend</span></div>
+    <div class="body">
+      <div class="ltitle">Spring Boot REST API &mdash; layered</div>
+      <div class="lsub">Controller <span class="ar"></span> Service <span class="ar"></span> Specification <span class="ar"></span> Repository, with DTOs as the API contract</div>
+      <div class="row" style="align-items:center">
+        <div class="card tint-be">
+          <h4>Controller<small>AirportDashboardController</small></h4>
+          <ul>
+            <li><span class="mono">@RestController</span> <span class="mono">/api/v1/dashboard</span></li>
+            <li>Binds &amp; validates query params</li>
+            <li>Wraps payload in <span class="mono">ApiResponse&lt;T&gt;</span></li>
+          </ul>
+        </div>
+        <div class="arrow-r sm"><i></i></div>
+        <div class="card tint-be">
+          <h4>Service<small>AirportDashboardServiceImpl</small></h4>
+          <ul>
+            <li>Status aggregation <span class="ar"></span> summary DTO</li>
+            <li>Sort-key aliasing + <span class="mono">Pageable</span></li>
+            <li>Entity <span class="ar"></span> response DTO mapping</li>
+          </ul>
+        </div>
+        <div class="arrow-r sm"><i></i></div>
+        <div class="card tint-be">
+          <h4>Specification<small>AirportDashboardSpecification</small></h4>
+          <ul>
+            <li>Composable JPA Criteria predicates</li>
+            <li><span class="mono">notDeleted</span> &middot; <span class="mono">hasStatus</span> &middot; <span class="mono">hasEntityType</span></li>
+            <li><span class="mono">hasLocation</span> &middot; multi-field <span class="mono">search</span></li>
+          </ul>
+        </div>
+        <div class="arrow-r sm"><i></i></div>
+        <div class="card tint-be">
+          <h4>Repository<small>AirportDashboardRepository</small></h4>
+          <ul>
+            <li><span class="mono">JpaRepository</span> + <span class="mono">JpaSpecificationExecutor</span></li>
+            <li><span class="mono">findAll(spec, pageable)</span></li>
+            <li>JPQL <span class="mono">GROUP BY status</span> count query</li>
+          </ul>
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <div class="card">
+          <h4>DTO / Contract<small>dto.response &middot; dto.common</small></h4>
+          <div class="chips">
+            <span class="chip">ApiResponse&lt;T&gt;</span><span class="chip">DashboardSummaryResponse</span><span class="chip">DashboardRecordResponse</span><span class="chip">Page&lt;T&gt;</span>
+          </div>
+          <div class="note" style="margin-top:8px">JPA entities are never returned to the client.</div>
+        </div>
+        <div class="card">
+          <h4>Cross-cutting<small>exception &middot; converter &middot; config</small></h4>
+          <div class="chips">
+            <span class="chip">GlobalExceptionHandler</span><span class="chip">ErrorResponse</span><span class="chip">DashboardStatusConverter</span><span class="chip">EntityTypeConverter</span><span class="chip">springdoc OpenAPI / Swagger UI</span>
+          </div>
+          <div class="note" style="margin-top:8px">AttributeConverters map DB label text <span class="ar both"><i></i></span> Java enums, tolerating legacy value formats.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="vgap tall">
+    <div class="side r">Spring Cache abstraction<br>RedisCacheManager (TTL 5 min)</div>
+    <div class="arrow-d"></div>
+    <div class="side">Hibernate / Spring Data JPA<br>JDBC connection pool</div>
+  </div>
+
+  <!-- ============ DATA & CACHE ============ -->
+  <div class="layer">
+    <div class="rail db"><span>Data &amp; Cache</span></div>
+    <div class="body">
+      <div class="ltitle">PostgreSQL = source of truth &nbsp;&nbsp;|&nbsp;&nbsp; Redis = performance layer</div>
+      <div class="lsub">Read-heavy workload: the aggregation query is the primary caching candidate</div>
+      <div class="row">
+        <div class="card tint-db" style="flex:1.35">
+          <h4>PostgreSQL<small>authoritative relational store</small></h4>
+          <ul>
+            <li>Table <span class="mono">airport_dashboard</span> &mdash; operational records</li>
+            <li>Audit columns: created / updated / deleted by &amp; at</li>
+            <li>Soft delete via <span class="mono">is_deleted</span>; optimistic locking via <span class="mono">version</span></li>
+            <li>CHECK constraints on status, entity type, ICAO / IATA format</li>
+            <li>Partial indexes on filter &amp; sort columns (<span class="mono">WHERE is_deleted = FALSE</span>)</li>
+            <li>Summary counts computed in SQL: <span class="mono">COUNT(*) GROUP BY status</span></li>
+            <li>Unique business key on <span class="mono">entity_identifier</span></li>
+          </ul>
+        </div>
+        <div class="card tint-cache" style="flex:1.65">
+          <h4>Redis &mdash; cache-aside<small>RedisConfig &middot; RedisCacheManager &middot; TTL 5 min</small></h4>
+          <div class="cacheflow">
+            <div class="cbox">Service<br>request</div>
+            <div class="arrow-r sm"><i></i></div>
+            <div class="cbox" style="border-color:#e6bdb9">Redis<br>lookup</div>
+            <div class="arrow-r sm"><i></i></div>
+            <div class="cbox hit">Cache hit<br><span class="ar"></span> response</div>
+          </div>
+          <div class="cacheflow">
+            <div class="cbox miss">Cache miss</div>
+            <div class="arrow-r sm"><i></i></div>
+            <div class="cbox">PostgreSQL<br>aggregate</div>
+            <div class="arrow-r sm"><i></i></div>
+            <div class="cbox">Store in<br>Redis</div>
+            <div class="arrow-r sm"><i></i></div>
+            <div class="cbox">Response</div>
+          </div>
+          <div class="note" style="margin-top:9px"><b>Cache keys:</b> <span class="mono">dashboardSummary</span>, <span class="mono">lookups</span>, <span class="mono">airport-details</span>, <span class="mono">users</span> &nbsp;&middot;&nbsp; <b>Invalidation:</b> <span class="mono">DashboardCacheService.evictDashboardSummaryCache()</span> (<span class="mono">@CacheEvict</span>)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="vgap tall">
+    <div class="side r">Hibernate <b>validates</b> the schema<br><span class="mono">spring.jpa.hibernate.ddl-auto: validate</span></div>
+    <div class="arrow-d"></div>
+    <div class="side">The schema is created and changed <b>only</b> by Flyway<br>No automatic DDL from the ORM</div>
+  </div>
+
+  <!-- ============ MIGRATION ============ -->
+  <div class="layer">
+    <div class="rail mig"><span>Schema lifecycle</span></div>
+    <div class="body">
+      <div class="ltitle">Flyway &mdash; version-controlled database evolution</div>
+      <div class="lsub">Migration SQL <span class="ar"></span> Git <span class="ar"></span> Flyway <span class="ar"></span> PostgreSQL, recorded in <span class="mono">flyway_schema_history</span></div>
+      <div class="row" style="align-items:center">
+        <div class="card tint-mig" style="flex:2">
+          <h4>Versioned migration scripts<small>src/main/resources/db/migration</small></h4>
+          <div class="chips">
+            <span class="chip k">V1 &mdash; Create table</span>
+            <span class="chip k">V2 &mdash; Constraints</span>
+            <span class="chip k">V3 &mdash; Indexes</span>
+            <span class="chip k">V4 &mdash; Data migration</span>
+            <span class="chip k">V5 &mdash; Seed data</span>
+          </div>
+          <div class="note" style="margin-top:9px">Structure, integrity, performance and data changes are separated into their own versions so each can be reviewed and rolled forward independently.</div>
+        </div>
+        <div class="arrow-r"><i></i></div>
+        <div class="card" style="flex:1">
+          <h4>flyway_schema_history<small>applied-migration ledger</small></h4>
+          <div class="chips">
+            <span class="chip">version</span><span class="chip">description</span><span class="chip">script</span><span class="chip">checksum</span><span class="chip">installed_on</span><span class="chip">success</span>
+          </div>
+        </div>
+        <div class="arrow-r"><i></i></div>
+        <div class="card tint-db" style="flex:0.8">
+          <h4>PostgreSQL<small>schema at a known version</small></h4>
+          <div class="note">Reproducible and identical across local, test and production environments.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div><span class="dot" style="background:var(--fe)"></span> Frontend &mdash; presentation</div>
+    <div><span class="dot" style="background:var(--be)"></span> Backend &mdash; API, business logic, querying</div>
+    <div><span class="dot" style="background:var(--db)"></span> PostgreSQL &mdash; <b>source of truth</b></div>
+    <div><span class="dot" style="background:var(--cache)"></span> Redis &mdash; <b>performance / cache layer</b></div>
+    <div><span class="dot" style="background:var(--mig)"></span> Flyway &mdash; <b>version-controlled DB evolution</b></div>
+  </div>
+  <div class="foot">Airport Operations Dashboard &middot; system architecture &middot; generated from the current repository structure</div>
+
+</div>
+</body>
+</html>

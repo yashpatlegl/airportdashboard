@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="style.css">
+<style>
+  .canvas { width: 1620px; }
+  .pipe { display: flex; align-items: stretch; margin-bottom: 26px; }
+  .pbox { flex: 1; border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 11px 13px; text-align: center; }
+  .pbox .t { font-size: 13.5px; font-weight: 700; }
+  .pbox .s { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.45; }
+  .pbox.dev { border-top: 3px solid var(--infra); }
+  .pbox.sql { border-top: 3px solid var(--mig); }
+  .pbox.git { border-top: 3px solid #5b5bd6; }
+  .pbox.ci  { border-top: 3px solid #0f766e; }
+  .pbox.fly { border-top: 3px solid var(--mig); background: #fffaf2; }
+  .pbox.pg  { border-top: 3px solid var(--db); }
+  .two { display: flex; gap: 22px; align-items: flex-start; margin-bottom: 22px; }
+  .vlist { display: flex; flex-direction: column; gap: 8px; }
+  .v { display: flex; gap: 11px; border: 1px solid var(--line); border-left: 3px solid var(--mig); border-radius: 6px; background: #fff; padding: 9px 12px; }
+  .v .vid { flex: 0 0 30px; font-size: 13px; font-weight: 700; color: var(--mig); }
+  .v .vt { font-size: 12.5px; font-weight: 700; margin-bottom: 3px; }
+  .v .vd { font-size: 11.5px; color: var(--ink-2); line-height: 1.55; }
+  table.hist { width: 100%; border-collapse: collapse; font-size: 11px; }
+  table.hist th { text-align: left; font-size: 10px; letter-spacing: 0.7px; text-transform: uppercase; color: var(--muted); border-bottom: 1.5px solid var(--line); padding: 6px 7px; font-weight: 700; }
+  table.hist td { border-bottom: 1px solid var(--line-soft); padding: 6px 7px; color: var(--ink-2); font-family: 'Noto Sans Mono', monospace; font-size: 10.5px; white-space: nowrap; }
+  table.hist td.ok { color: #14663c; font-weight: 700; }
+  .cmp { display: flex; gap: 22px; }
+  .cmp .card { padding: 13px 15px; }
+  .rules { display: flex; gap: 12px; }
+  .rules .callout { flex: 1; }
+</style>
+</head>
+<body>
+<div class="canvas">
+
+  <div class="head">
+    <div>
+      <div class="h1">Database Migration Lifecycle &mdash; Flyway + PostgreSQL</div>
+      <div class="sub">Every schema change is a reviewed file in version control &nbsp;&middot;&nbsp; <span class="mono">src/main/resources/db/migration</span></div>
+    </div>
+    <div class="tag">Controlled schema evolution</div>
+  </div>
+
+  <!-- ============ PIPELINE ============ -->
+  <div class="pipe">
+    <div class="pbox dev"><div class="t">Developer</div><div class="s">Writes a new versioned<br>SQL migration</div></div>
+    <div class="arrow-r"><i></i></div>
+    <div class="pbox sql"><div class="t">Migration file</div><div class="s"><span class="mono">V&lt;n&gt;__Description.sql</span><br>one logical change</div></div>
+    <div class="arrow-r"><i></i></div>
+    <div class="pbox git"><div class="t">Git repository</div><div class="s">Reviewed in a pull request<br>alongside the code change</div></div>
+    <div class="arrow-r"><i></i></div>
+    <div class="pbox ci"><div class="t">CI / CD pipeline</div><div class="s">Build, test, then deploy<br>the application artifact</div></div>
+    <div class="arrow-r"><i></i></div>
+    <div class="pbox fly"><div class="t">Flyway</div><div class="s">Runs pending migrations<br>in order on startup</div></div>
+    <div class="arrow-r"><i></i></div>
+    <div class="pbox pg"><div class="t">PostgreSQL</div><div class="s">Schema at a known,<br>reproducible version</div></div>
+  </div>
+
+  <!-- ============ SCRIPTS + HISTORY ============ -->
+  <div class="two">
+    <div style="flex:1.55">
+      <div class="ltitle" style="margin-bottom:9px">Versioned migrations &mdash; one concern per version</div>
+      <div class="vlist">
+        <div class="v"><div class="vid">V1</div><div><div class="vt">Create Airport Dashboard &mdash; structure</div><div class="vd">Table <span class="mono">airport_dashboard</span>: <span class="mono">BIGSERIAL</span> key, entity identifier and type, ICAO / IATA, airport name, location, procedure, MITS, effective date, status, remarks, full audit columns, soft-delete columns and an optimistic-locking <span class="mono">version</span>.</div></div></div>
+        <div class="v"><div class="vid">V2</div><div><div class="vt">Constraints &mdash; integrity</div><div class="vd"><span class="mono">UNIQUE(entity_identifier)</span> &middot; regex CHECKs for <span class="mono">ICAO ^[A-Z]{4}$</span> and <span class="mono">IATA ^[A-Z]{3}$</span> &middot; allowed <span class="mono">entity_type</span> and the ten workflow <span class="mono">status</span> values &middot; <span class="mono">version &gt;= 1</span> &middot; a deleted row must carry <span class="mono">deleted_at</span>.</div></div></div>
+        <div class="v"><div class="vid">V3</div><div><div class="vt">Indexes &mdash; performance</div><div class="vd">Partial indexes on every filter and sort column (status, entity type, ICAO, IATA, location, effective date, updated at) plus the composite <span class="mono">(status, updated_at DESC)</span>. All are declared <span class="mono">WHERE is_deleted = FALSE</span>, so they stay small and match the queries the dashboard actually runs.</div></div></div>
+        <div class="v"><div class="vid">V4</div><div><div class="vt">Data migration &mdash; normalisation</div><div class="vd"><span class="mono">UPPER</span> / <span class="mono">TRIM</span> of codes and identifiers, audit backfill for legacy rows, empty strings converted to <span class="mono">NULL</span>. Runs before the data has to satisfy the constraints added in V2.</div></div></div>
+        <div class="v"><div class="vid">V5</div><div><div class="vt">Seed data &mdash; reference set</div><div class="vd">Twenty AOM records covering all ten workflow statuses, so a fresh environment renders a meaningful dashboard immediately.</div></div></div>
+      </div>
+      <div class="card" style="margin-top:12px; border-top:3px solid var(--infra)">
+        <h4>Adding the next change<small>e.g. a new filterable column</small></h4>
+        <div class="kvsteps" style="display:grid; grid-template-columns:1fr 1fr; gap:2px 22px">
+          <div class="note">1 &nbsp;Create <span class="mono">V6__Add_&lt;change&gt;.sql</span> &mdash; never edit V1&ndash;V5</div>
+          <div class="note">3 &nbsp;Update the JPA entity to match the new schema</div>
+          <div class="note">2 &nbsp;Add the index or constraint the new query needs</div>
+          <div class="note">4 &nbsp;Start the app: Flyway applies V6, Hibernate validates</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:1">
+      <div class="ltitle" style="margin-bottom:9px">Flyway keeps its own ledger in the database</div>
+      <div class="card" style="border-top:3px solid var(--mig)">
+        <h4>flyway_schema_history<small>created and maintained by Flyway</small></h4>
+        <table class="hist">
+          <tr><th>version</th><th>description</th><th>script</th><th>checksum</th><th>installed_on</th><th>ok</th></tr>
+          <tr><td>1</td><td>Create Airport Dashboard</td><td>V1__&hellip;.sql</td><td>-184&hellip;</td><td>2026-08-19 09:14</td><td class="ok">true</td></tr>
+          <tr><td>2</td><td>Add Constraints</td><td>V2__&hellip;.sql</td><td>9931&hellip;</td><td>2026-08-19 09:14</td><td class="ok">true</td></tr>
+          <tr><td>3</td><td>Add Indexes</td><td>V3__&hellip;.sql</td><td>4470&hellip;</td><td>2026-08-19 09:14</td><td class="ok">true</td></tr>
+          <tr><td>4</td><td>Migrate Data</td><td>V4__&hellip;.sql</td><td>2258&hellip;</td><td>2026-08-19 09:14</td><td class="ok">true</td></tr>
+          <tr><td>5</td><td>Seed Data</td><td>V5__&hellip;.sql</td><td>7712&hellip;</td><td>2026-08-19 09:14</td><td class="ok">true</td></tr>
+        </table>
+        <div class="note" style="margin-top:10px">On every startup Flyway compares this ledger with the files on the classpath: already-applied versions are skipped, new versions are applied in order, and a changed checksum on an applied version fails the migration instead of silently diverging.</div>
+      </div>
+
+      <div class="card" style="margin-top:12px; border-top:3px solid var(--infra)">
+        <h4>Configuration in use<small>application.yaml</small></h4>
+        <div class="chips">
+          <span class="chip k">spring.flyway.enabled: true</span>
+          <span class="chip k">locations: classpath:db/migration</span>
+          <span class="chip k">baseline-on-migrate: true</span>
+          <span class="chip k">spring.jpa.hibernate.ddl-auto: validate</span>
+        </div>
+        <div class="note" style="margin-top:9px"><b>baseline-on-migrate</b> lets Flyway adopt a database that already contains tables: the existing state becomes the baseline and only later versions are applied.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ HIBERNATE vs FLYWAY ============ -->
+  <div class="ltitle" style="margin-bottom:9px">Who is allowed to change the schema</div>
+  <div class="cmp" style="margin-bottom:18px">
+    <div class="card" style="border-top:3px solid var(--mig); flex:1">
+      <h4>Flyway &mdash; <span style="color:var(--mig)">creates and modifies</span><small>the single writer of DDL</small></h4>
+      <ul>
+        <li>Owns <span class="mono">CREATE</span>, <span class="mono">ALTER</span>, index and constraint changes</li>
+        <li>Same ordered scripts run on local, test and production</li>
+        <li>Every change is reviewable, repeatable and attributable</li>
+      </ul>
+    </div>
+    <div class="card" style="border-top:3px solid var(--be); flex:1">
+      <h4>Hibernate &mdash; <span style="color:var(--be)">validates only</span><small>ddl-auto: validate</small></h4>
+      <ul>
+        <li>Compares entity mappings against the live schema at startup</li>
+        <li>Fails fast on a mismatch instead of guessing or patching</li>
+        <li>Never issues DDL &mdash; no <span class="mono">update</span>, no <span class="mono">create-drop</span>, in any environment</li>
+      </ul>
+    </div>
+    <div class="card" style="border-top:3px solid var(--cache); flex:1">
+      <h4>Why not <span class="mono">ddl-auto: update</span>?<small>the failure mode being avoided</small></h4>
+      <ul>
+        <li>Silently mutates production schemas with no history</li>
+        <li>Cannot express data migration, renames or backfills</li>
+        <li>Drifts between environments and can never be replayed</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="rules">
+    <div class="callout"><b>Applied migrations are immutable.</b> A script that has already run is never edited &mdash; the checksum in the ledger would no longer match. A correction ships as a new version.</div>
+    <div class="callout"><b>Sequential and ordered.</b> Versions are applied lowest to highest, so structure precedes constraints, constraints precede data normalisation, and seed data comes last.</div>
+    <div class="callout"><b>Adopting an existing database.</b> When the target schema is not empty, baseline first and validate the current structure before applying constraint or data migrations.</div>
+  </div>
+
+  <div class="foot">Airport Operations Dashboard &middot; Flyway migration lifecycle &middot; descriptions taken from the migration scripts in the repository</div>
+</div>
+</body>
+</html>

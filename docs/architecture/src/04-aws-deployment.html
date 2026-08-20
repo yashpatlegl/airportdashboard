@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="style.css">
+<style>
+  .canvas { width: 1620px; }
+  .cols { display: flex; gap: 24px; align-items: stretch; }
+  .left { flex: 1 1 auto; min-width: 0; }
+  .right { flex: 0 0 380px; display: flex; flex-direction: column; gap: 12px; }
+
+  .edge { display: flex; align-items: stretch; gap: 0; margin-bottom: 6px; }
+  .svc { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 11px 14px; flex: 1; }
+  .svc .aws { font-size: 9.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+  .svc .t { font-size: 14px; font-weight: 700; }
+  .svc .s { font-size: 11.3px; color: var(--ink-2); line-height: 1.5; margin-top: 5px; }
+  .svc.orange { border-top: 3px solid #c2570b; }
+  .svc.purple { border-top: 3px solid #6d4bd8; }
+  .svc.blue   { border-top: 3px solid #1d4ed8; }
+  .svc.teal   { border-top: 3px solid #0f766e; }
+  .svc.red    { border-top: 3px solid #b3261e; }
+  .svc.grey   { border-top: 3px solid var(--infra); }
+
+  .vpc { border: 1.5px dashed #6d4bd8; border-radius: 10px; padding: 13px; margin-top: 8px; position: relative; background: #fbfaff; }
+  .vpc > .cap { position: absolute; top: -10px; left: 16px; background: #fbfaff; padding: 0 8px; font-size: 10.5px; font-weight: 700; letter-spacing: 1.1px; text-transform: uppercase; color: #6d4bd8; }
+  .subnet { border: 1px solid #d8d3f0; border-radius: 8px; background: #fff; padding: 11px 13px; position: relative; }
+  .subnet > .cap { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #7a6fb0; margin-bottom: 9px; }
+  .pair { display: flex; gap: 12px; }
+  .tasks { display: flex; gap: 9px; }
+  .task { flex: 1; border: 1px solid var(--line); border-radius: 6px; background: #f8fbfa; padding: 8px 10px; font-size: 11.3px; color: var(--ink-2); line-height: 1.45; }
+  .task b { display: block; font-size: 12px; color: var(--ink); margin-bottom: 2px; }
+
+  .pipe { display: flex; align-items: stretch; margin-top: 8px; }
+  .pbox { flex: 1; border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 9px 11px; text-align: center; }
+  .pbox .t { font-size: 12.5px; font-weight: 700; }
+  .pbox .s { font-size: 10.8px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+</style>
+</head>
+<body>
+<div class="canvas">
+
+  <div class="head">
+    <div>
+      <div class="h1">Target AWS Deployment Architecture</div>
+      <div class="sub">Deployment proposal for the Airport Operations Dashboard &mdash; <b>not yet provisioned</b>; the application runs locally today</div>
+    </div>
+    <div class="tag" style="border-color:#c2570b; color:#c2570b">Proposed &middot; future state</div>
+  </div>
+
+  <div class="cols">
+    <!-- ================= RUNTIME ================= -->
+    <div class="left">
+
+      <div class="edge">
+        <div class="svc grey" style="flex:0.85">
+          <div class="aws">Client</div>
+          <div class="t">User browser</div>
+          <div class="s">Airport operations staff open the dashboard over HTTPS.</div>
+        </div>
+        <div class="arrow-r"><i></i></div>
+        <div class="svc orange">
+          <div class="aws">Amazon CloudFront + Amazon S3</div>
+          <div class="t">Angular static hosting / CDN</div>
+          <div class="s">The <span class="mono">ng build</span> output is served from edge locations. Static assets never reach the application tier.</div>
+        </div>
+      </div>
+
+      <div class="vgap"><div class="side r">API calls only</div><div class="arrow-d"></div><div class="side"><span class="mono">/api/v1/*</span> forwarded to the load balancer</div></div>
+
+      <div class="vpc">
+        <div class="cap">Amazon VPC</div>
+
+        <div class="subnet">
+          <div class="cap">Public subnets &middot; multi-AZ</div>
+          <div class="svc blue" style="border:none; padding:0">
+            <div class="aws">Application Load Balancer</div>
+            <div class="t">ALB &mdash; TLS termination and health checks</div>
+            <div class="s">Single public entry point to the API. Distributes traffic across healthy tasks in every availability zone.</div>
+          </div>
+        </div>
+
+        <div class="vgap"><div class="side r">Target group</div><div class="arrow-d"></div><div class="side">HTTP to container port 8080</div></div>
+
+        <div class="subnet">
+          <div class="cap">Private subnets &middot; application tier</div>
+          <div class="svc teal" style="border:none; padding:0; margin-bottom:10px">
+            <div class="aws">Amazon ECS on AWS Fargate</div>
+            <div class="t">Spring Boot API &mdash; containerised, no servers to manage</div>
+            <div class="s">Stateless tasks, so scaling out is purely horizontal. Flyway runs on task startup and brings the schema to the version the image expects.</div>
+          </div>
+          <div class="tasks">
+            <div class="task"><b>Task 1 &middot; AZ a</b>Spring Boot container</div>
+            <div class="task"><b>Task 2 &middot; AZ b</b>Spring Boot container</div>
+            <div class="task"><b>Auto scaling</b>Target tracking on CPU / request count</div>
+          </div>
+        </div>
+
+        <div class="vgap tall">
+          <div class="side r">JDBC &mdash; reads and writes<br>Security-group scoped, private only</div>
+          <div class="arrow-d"></div>
+          <div class="spacer"></div>
+          <div class="arrow-d"></div>
+          <div class="side">Cache-aside lookups<br>Summary counts and lookup data</div>
+        </div>
+
+        <div class="subnet">
+          <div class="cap">Private subnets &middot; data tier</div>
+          <div class="pair">
+            <div class="svc blue" style="flex:1.1">
+              <div class="aws">Amazon RDS for PostgreSQL</div>
+              <div class="t">System of record</div>
+              <div class="s">Multi-AZ standby for failover, automated backups and point-in-time recovery. Schema evolution stays with Flyway; read replicas are the first scaling step for reporting.</div>
+            </div>
+            <div class="svc red" style="flex:0.9">
+              <div class="aws">Amazon ElastiCache for Redis</div>
+              <div class="t">Cache-aside layer</div>
+              <div class="s">Holds dashboard summary counts and lookup data with a short TTL. Absorbs repeated aggregation reads; PostgreSQL remains authoritative.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= PLATFORM ================= -->
+    <div class="right">
+      <div class="svc purple">
+        <div class="aws">AWS Secrets Manager</div>
+        <div class="t">Configuration and credentials</div>
+        <div class="s">Database credentials and Redis connection details are injected into the ECS task at runtime. Nothing sensitive lives in <span class="mono">application.yaml</span> or in the image.</div>
+      </div>
+      <div class="svc grey">
+        <div class="aws">Amazon ECR</div>
+        <div class="t">Container image registry</div>
+        <div class="s">Immutable, tagged images. The tag deployed to Fargate is the exact artifact that passed CI.</div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--db)">
+        <h4>Scaling path<small>in order of cost and effort</small></h4>
+        <ul>
+          <li>Add Fargate tasks behind the ALB &mdash; the API is stateless</li>
+          <li>Serve summary counts from Redis to remove repeated aggregation</li>
+          <li>Add an RDS read replica and route dashboard reads to it</li>
+          <li>Move to keyset pagination when deep pages become common</li>
+          <li>Materialise the status summary if counts outgrow live aggregation</li>
+          <li>Introduce a dedicated read model only if the workload demands it</li>
+        </ul>
+      </div>
+      <div class="callout" style="border-left-color:#c2570b">
+        <b>Deliberately excluded:</b> Kubernetes, message brokers, search clusters and serverless functions. Nothing in the current workload justifies them, and each would add operational surface without removing a real constraint.
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= CI/CD ================= -->
+  <div class="ltitle" style="margin-top:22px; margin-bottom:2px">Delivery pipeline</div>
+  <div class="lsub" style="margin-bottom:4px">The same image is built once, promoted through environments, and deployed to Fargate</div>
+  <div class="pipe">
+    <div class="pbox"><div class="t">Developer</div><div class="s">Feature branch<br>+ migration script</div></div>
+    <div class="arrow-r sm"><i></i></div>
+    <div class="pbox"><div class="t">Git repository</div><div class="s">Pull request<br>and review</div></div>
+    <div class="arrow-r sm"><i></i></div>
+    <div class="pbox"><div class="t">CI &mdash; build &amp; test</div><div class="s">Gradle build<br>automated tests</div></div>
+    <div class="arrow-r sm"><i></i></div>
+    <div class="pbox"><div class="t">Docker image</div><div class="s">Backend JAR<br>packaged once</div></div>
+    <div class="arrow-r sm"><i></i></div>
+    <div class="pbox grey"><div class="t">Amazon ECR</div><div class="s">Tagged, immutable<br>image</div></div>
+    <div class="arrow-r sm"><i></i></div>
+    <div class="pbox"><div class="t">ECS Fargate</div><div class="s">Rolling deploy<br>Flyway migrates on boot</div></div>
+    <div class="arrow-r sm"><i></i></div>
+    <div class="pbox"><div class="t">Frontend</div><div class="s">Angular build to S3<br>CloudFront invalidation</div></div>
+  </div>
+
+  <div class="legend">
+    <div><span class="dot" style="background:#c2570b"></span> Edge / static delivery</div>
+    <div><span class="dot" style="background:#1d4ed8"></span> Networking &amp; relational data</div>
+    <div><span class="dot" style="background:#0f766e"></span> Application runtime</div>
+    <div><span class="dot" style="background:#b3261e"></span> Cache</div>
+    <div><span class="dot" style="background:#6d4bd8"></span> Security &amp; VPC boundary</div>
+  </div>
+  <div class="foot">Airport Operations Dashboard &middot; target AWS deployment architecture &middot; proposal, not a description of a live environment</div>
+</div>
+</body>
+</html>
